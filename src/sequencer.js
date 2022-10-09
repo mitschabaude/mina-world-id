@@ -19,7 +19,7 @@ let currentIndex = 0;
 
 let server = http.createServer(async (req, res) => {
   let response = '';
-  let headers = {};
+  let headers = { 'Access-Control-Allow-Origin': '*' };
   try {
     console.log(req.url);
     switch (req.url) {

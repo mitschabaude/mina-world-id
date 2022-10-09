@@ -2,7 +2,7 @@
  * script that starts the sequencer and tests the happy path of inserting a public key,
  * fetching the merkle witness for it and calling the world id zkapp to produce a proof of unique personhood
  */
-import { Field, isReady, Mina, Poseidon, PrivateKey } from 'snarkyjs';
+import { Field, isReady, Mina, PrivateKey } from 'snarkyjs';
 import { isRunning, PORT } from './sequencer.js';
 import { WorldId } from '../build/src/WorldId.js';
 
@@ -11,19 +11,14 @@ await isReady;
 
 let sequencerUrl = `http://localhost:${PORT}`;
 
-let privateKey = { trapdoor: Field.random(), nullifier: Field.random() };
-let publicKey = Poseidon.hash([privateKey.trapdoor, privateKey.nullifier]);
+let { privateKey, publicKey } = WorldId.generateKeypair();
 let irisHash = Field.random();
 
-let response = await fetch(`${sequencerUrl}/insert`, {
-  method: 'POST',
-  body: JSON.stringify({ irisHash, publicKey }),
-});
-console.log({ status: response.status });
+await WorldId.postPublicKey(sequencerUrl, publicKey, irisHash);
 
 // now fetch the merkle proof
 let worldId = new WorldId(PrivateKey.random().toPublicKey());
-let { witness, signedRoot } = await worldId.fetchMerkleProof(
+let { witness, signedRoot } = await WorldId.fetchMerkleProof(
   sequencerUrl,
   publicKey
 );

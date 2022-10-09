@@ -15,6 +15,7 @@ import {
 import { MERKLE_TREE_HEIGHT } from './constants.js';
 
 export { WorldId };
+export * as snarky from 'snarkyjs';
 
 // a semaphore "private key" / "identity" consists of two 31 byte numbers: trapdoor and nullifier.
 // we represent those as Fields (elements of the Vesta curve base field), which can hold 254 bits > 31 bytes
@@ -103,8 +104,27 @@ class WorldId extends SmartContract {
     return nullifierHash;
   }
 
+  // helper method to generate an identity / a keypair
+  static generateKeypair() {
+    let privateKey = { trapdoor: Field.random(), nullifier: Field.random() };
+    let publicKey = Poseidon.hash([privateKey.trapdoor, privateKey.nullifier]);
+    return { privateKey, publicKey };
+  }
+
+  // helper method to insert new publicKey
+  static async postPublicKey(
+    sequencerUrl: string,
+    publicKey: Field,
+    irisHash: Field
+  ) {
+    await fetch(`${sequencerUrl}/insert`, {
+      method: 'POST',
+      body: JSON.stringify({ irisHash, publicKey }),
+    });
+  }
+
   // helper method to get the merkle witness from the sequencer
-  async fetchMerkleProof(sequencerUrl: string, publicKey: PublicKey) {
+  static async fetchMerkleProof(sequencerUrl: string, publicKey: Field) {
     let response = await fetch(`${sequencerUrl}/proof`, {
       method: 'POST',
       body: JSON.stringify({ publicKey }),

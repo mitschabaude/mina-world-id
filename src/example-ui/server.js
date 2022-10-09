@@ -7,13 +7,15 @@ let defaultHeaders = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
   'Cross-Origin-Opener-Policy': 'same-origin',
 };
+let dirname = path.dirname(import.meta.url.slice(7));
+
 let server = http.createServer(async (req, res) => {
   let file = '.' + req.url;
   console.log(file);
   if (file === './') file = './index.html';
   let content;
   try {
-    content = await fs.readFile(path.resolve('./public', file), 'utf8');
+    content = await fs.readFile(path.resolve(dirname, 'public', file), 'utf8');
   } catch (err) {
     res.writeHead(404, defaultHeaders);
     res.write('<html><body>404</body><html>');
