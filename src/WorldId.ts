@@ -14,7 +14,7 @@ import {
 } from 'snarkyjs';
 import { MERKLE_TREE_HEIGHT } from './constants.js';
 
-export { WorldId };
+export { WorldId, SemaphorePrivateKey };
 export * as snarky from 'snarkyjs';
 
 // a semaphore "private key" / "identity" consists of two 31 byte numbers: trapdoor and nullifier.
@@ -117,7 +117,7 @@ class WorldId extends SmartContract {
     publicKey: Field,
     irisHash: Field
   ) {
-    await fetch(`${sequencerUrl}/insert`, {
+    return await fetch(`${sequencerUrl}/insert`, {
       method: 'POST',
       body: JSON.stringify({ irisHash, publicKey }),
     });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Field } from 'snarkyjs';
 
@@ -9,10 +9,11 @@ let darkGrey = '#999999';
 
 type View = 'None' | 'Orb' | 'Captcha' | 'Speak';
 let views: View[] = ['Orb', 'Captcha', 'Speak'];
-let startView: View = 'Orb';
+let startView: View = 'Captcha';
 
 type Snarky = typeof import('snarkyjs');
 let snarky: Snarky;
+let WorldIdModule: typeof import('../WorldId');
 let WorldId: typeof import('../WorldId')['WorldId'];
 
 const sequencerUrl = 'http://localhost:3000';
@@ -24,15 +25,18 @@ function App() {
   let [isReady, setIsReady] = useState(false);
   useEffect(() => {
     (async () => {
-      ({ WorldId, snarky } = await import('../../build/src/WorldId.js'));
+      WorldIdModule = await import('../../build/src/WorldId.js');
+      ({ snarky, WorldId } = WorldIdModule);
       await snarky.isReady;
       setIsReady(true);
     })();
   }, []);
-  let View = ({ Orb } as any)[view] ?? null;
+  let View = ({ Orb, Captcha } as any)[view] ?? null;
   return (
     <Container>
-      <h1 style={{ textAlign: 'center' }}>mina ❤️ world id</h1>
+      <h1 style={{ textAlign: 'center' }}>
+        mina <span style={{ fontFamily: 'sans-serif' }}>❤️</span> world id
+      </h1>
       <Space h="1rem" />
 
       <p style={{ textAlign: 'center' }}>
@@ -51,16 +55,24 @@ function App() {
 
 function Orb() {
   let [name, setName] = useState('');
+  let [isLoading, setLoading] = useState(false);
   let { Poseidon, Encoding } = snarky;
   let irisHash = Poseidon.hash(Encoding.stringToFields(name ?? ''));
 
   async function createId(e: any) {
     e?.preventDefault();
-    let { privateKey, publicKey } = WorldId.generateKeypair();
-    await WorldId.postPublicKey(sequencerUrl, publicKey, irisHash);
-    let worldIds = JSON.parse(localStorage.worldIds ?? '[]');
-    worldIds.push({ name, irisHash, privateKey, publicKey });
-    localStorage.worldIds = JSON.stringify(worldIds);
+    setLoading(true);
+    try {
+      let { privateKey, publicKey } = WorldId.generateKeypair();
+      let res = await WorldId.postPublicKey(sequencerUrl, publicKey, irisHash);
+      if (res.ok) {
+        let worldIds = JSON.parse(localStorage.worldIds ?? '[]');
+        worldIds.push({ name, privateKey, publicKey });
+        localStorage.worldIds = JSON.stringify(worldIds);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
   return (
     <form
@@ -68,8 +80,8 @@ function Orb() {
       style={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}
     >
       <p style={{ textAlign: 'center' }}>
-        This is a silly replacement of what a real orb does: Instead of scanning
-        your iris, it derives the "iris hash" from the name you type in.
+        This is a placeholder of what a real orb does: Instead of scanning your
+        iris, we derive the "iris hash" from the name you type in.
       </p>
       <Space h="2rem" />
       <input
@@ -85,8 +97,101 @@ function Orb() {
         <b> {shortHex(irisHash)}</b>
       </p>
       <Space h="2rem" />
-      <LoadingButton>Create ID</LoadingButton>
+      <LoadingButton isLoading={isLoading} disabled={!name}>
+        Create ID
+      </LoadingButton>
     </form>
+  );
+}
+
+type SemaphorePrivateKey = { trapdoor: Field; nullifier: Field };
+
+type Identity = {
+  name: string;
+  publicKey: Field;
+  privateKey: SemaphorePrivateKey;
+};
+
+function Captcha() {
+  let [isSuccess, setSuccess] = useState(false);
+  let [isLoading, setLoading] = useState(false);
+
+  let worldIds: Identity[] = useMemo(
+    () => JSON.parse(localStorage.worldIds ?? '[]'),
+    []
+  );
+  async function createAndVerifyCaptchaProof(
+    privateKey: { trapdoor: string; nullifier: string },
+    publicKey: Field
+  ) {
+    let { Mina, PrivateKey, Field } = snarky;
+    let { SemaphorePrivateKey } = WorldIdModule;
+
+    setLoading(true);
+    try {
+      let { witness, signedRoot } = await WorldId.fetchMerkleProof(
+        sequencerUrl,
+        publicKey
+      );
+
+      await WorldId.compile();
+
+      let worldId = new WorldId(PrivateKey.random().toPublicKey());
+      let privateKey_ = SemaphorePrivateKey.fromJSON(privateKey)!;
+
+      let tx = await Mina.transaction(() => {
+        worldId.provePersonhood(
+          privateKey_,
+          witness,
+          signedRoot,
+          Field.zero,
+          Field.zero
+        );
+      });
+      await tx.prove();
+      setSuccess(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (isSuccess)
+    return (
+      <>
+        <Space h="2rem" />
+        <h1>You did it! 🥳</h1>
+      </>
+    );
+  return (
+    <>
+      <p style={{ textAlign: 'center' }}>
+        Log in by showing a <i>proof of personhood</i> -- a zk proof that your
+        browser-stored identity is contained in the Merkle tree of public keys
+        maintained by the World ID sequencer.
+      </p>
+      <Space h="2rem" />
+      {worldIds.map((id) => {
+        return (
+          <div key={id.name}>
+            <LoadingButton
+              onClick={() =>
+                createAndVerifyCaptchaProof(id.privateKey, id.publicKey)
+              }
+              isLoading={isLoading}
+            >
+              Login as {id.name}
+            </LoadingButton>
+            <Space h="1rem" />
+          </div>
+        );
+      })}
+      <Space h="1rem" />
+      <p style={{ textAlign: 'center', fontSize: '0.8rem' }}>
+        This is a somewhat silly example because the same website that verifies
+        the proof also creates it. In a real-world scenario, the proof could
+        come from a wallet.
+      </p>
+    </>
   );
 }
 
@@ -120,22 +225,8 @@ function Navigation({ view, setView }: any) {
   );
 }
 
-function LoadingButton({ disabled = false, onClick, ...props }: any) {
-  let [isLoading, setIsLoading] = useState(false);
-  async function onClickLoading() {
-    setIsLoading(true);
-    await onClick?.();
-    setIsLoading(false);
-  }
-  return (
-    <Button
-      {...{
-        onClick: onClickLoading,
-        disabled: disabled || isLoading,
-        ...props,
-      }}
-    />
-  );
+function LoadingButton({ disabled = false, isLoading, ...props }: any) {
+  return <Button {...{ disabled: disabled || isLoading, ...props }} />;
 }
 
 function Button({ disabled = false, ...props }) {
