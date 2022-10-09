@@ -2,8 +2,6 @@ import {
   Field,
   method,
   SmartContract,
-  State,
-  state,
   Experimental,
   Poseidon,
   Signature,
@@ -14,7 +12,7 @@ import {
 } from 'snarkyjs';
 import { MERKLE_TREE_HEIGHT } from './constants.js';
 
-export { WorldId, SemaphorePrivateKey };
+export { WorldId, SemaphorePrivateKey, SignedMerkleRoot, MerkleWitness };
 export * as snarky from 'snarkyjs';
 
 // a semaphore "private key" / "identity" consists of two 31 byte numbers: trapdoor and nullifier.
@@ -35,13 +33,6 @@ class SignedMerkleRoot extends CircuitValue {
 class MerkleWitness extends Experimental.MerkleWitness(MERKLE_TREE_HEIGHT) {}
 
 class WorldId extends SmartContract {
-  /**
-   * merkle root or the tree which stores identities
-   * == the big semaphore group containing all the unique humans
-   * this is supposed to be synced with the world id merkle tree
-   */
-  @state(Field) root = State<Field>();
-
   events = { signal: Field };
 
   sequencerPublicKey = PublicKey.fromBase58(
@@ -60,7 +51,7 @@ class WorldId extends SmartContract {
    * this method also takes an "external nullifier" and returns a "nullifier hash", which can be used by the application
    * to check that this user performs a unique action.
    *
-   * checking that the nullifier wasn't used before is up to whoever calls this zkapp
+   * checking that the nullifier wasn't used before is up to whoever calls this method
    * (if it's another zkapp, it could prove non membership in a sparse merkle tree which it maintains, for example)
    *
    * finally, the method takes a "signal" which is emitted as an event, to potentially connect the proof
@@ -72,10 +63,35 @@ class WorldId extends SmartContract {
    */
   @method provePersonhood(
     privateKey: SemaphorePrivateKey,
+    // TODO: when we support async circuits, we can fetch the merkle proof inside this method
     merklePath: MerkleWitness,
     signedRoot: SignedMerkleRoot,
     externalNullifier: Field,
     signal: Field
+  ) {
+    // publish the input signal as an event, so it's connected to this circuit
+    this.emitEvent('signal', signal);
+
+    return this.provePersonhoodBase(
+      privateKey,
+      merklePath,
+      signedRoot,
+      externalNullifier
+    );
+  }
+
+  /**
+   * core part which only does the proof of personhood, not the event,
+   * and which is not a standalone method => can be included in other
+   * zkapp circuits without the overhead of creating a second proof
+   */
+  provePersonhoodBase(
+    privateKey: SemaphorePrivateKey,
+    // TODO: when we support async circuits, we can fetch the merkle proof inside this method
+    // that would clean up the interface
+    merklePath: MerkleWitness,
+    signedRoot: SignedMerkleRoot,
+    externalNullifier: Field
   ) {
     // hash together trapdoor & nullifier to get the "public key" == merkle leaf
     // TODO: this is NOT compatible with world id public keys right now, bc world id uses Poseidon on its BN curve for this hash.
@@ -92,9 +108,6 @@ class WorldId extends SmartContract {
     signedRoot.signature
       .verify(this.sequencerPublicKey, [signedRoot.root])
       .assertTrue();
-
-    // publish the input as an event, so its connected to this circuit
-    this.emitEvent('signal', signal);
 
     // compute the nullifier hash and return it
     let nullifierHash = Poseidon.hash([

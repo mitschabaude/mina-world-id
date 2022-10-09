@@ -9,12 +9,12 @@ let darkGrey = '#999999';
 
 type View = 'None' | 'Orb' | 'Captcha' | 'Speak';
 let views: View[] = ['Orb', 'Captcha', 'Speak'];
-let startView: View = 'Captcha';
+let startView: View = 'None';
 
 type Snarky = typeof import('snarkyjs');
 let snarky: Snarky;
-let WorldIdModule: typeof import('../WorldId');
-let WorldId: typeof import('../WorldId')['WorldId'];
+let SmartContractModule: typeof import('../index');
+let WorldId: typeof import('../index')['WorldId'];
 
 const sequencerUrl = 'http://localhost:3000';
 
@@ -27,8 +27,8 @@ function App() {
   useEffect(() => {
     // asnychronously load snarkyjs
     (async () => {
-      WorldIdModule = await import('../../build/src/WorldId.js');
-      ({ snarky, WorldId } = WorldIdModule);
+      SmartContractModule = await import('../../build/src/index.js');
+      ({ snarky, WorldId } = SmartContractModule);
       await snarky.isReady;
       setIsReady(true);
     })();
@@ -52,7 +52,7 @@ function App() {
       reload((i) => i + 1);
     })();
   }, []);
-  let View = ({ Orb, Captcha } as any)[view] ?? null;
+  let View = ({ Orb, Captcha, Speak } as any)[view] ?? null;
   return (
     <Container>
       <h1 style={{ textAlign: 'center' }}>
@@ -101,8 +101,8 @@ function Orb() {
       style={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}
     >
       <p style={{ textAlign: 'center' }}>
-        This is a placeholder of what a real orb does: Instead of scanning your
-        iris, we derive the "iris hash" from the name you type in.
+        This is a fake placeholder for what a real orb does: Instead of scanning
+        your iris, we derive the "iris hash" from the name you type in.
       </p>
       <Space h="2rem" />
       <input
@@ -145,8 +145,8 @@ function Captcha() {
     privateKey: { trapdoor: string; nullifier: string },
     publicKey: Field
   ) {
-    let { Mina, PrivateKey, Field } = snarky;
-    let { SemaphorePrivateKey } = WorldIdModule;
+    let { Mina, PrivateKey, Field, verify } = snarky;
+    let { SemaphorePrivateKey } = SmartContractModule;
 
     setLoading(true);
     try {
@@ -169,8 +169,9 @@ function Captcha() {
           Field.zero
         );
       });
-      await tx.prove();
-      setSuccess(true);
+      let [proof] = await tx.prove();
+      let ok = await verify(proof!, WorldId._verificationKey!.data);
+      setSuccess(ok);
     } finally {
       setLoading(false);
     }
@@ -218,6 +219,114 @@ function Captcha() {
           verifies the proof also creates it. In a real-world scenario, the
           proof could come from a wallet.
         </p>
+      )}
+    </>
+  );
+}
+
+function Speak() {
+  let {
+    SemaphorePrivateKey,
+    HumanMessage,
+    deployHumanMessage,
+    StringOf7Fields,
+    zkappAddress,
+    getMessage,
+    feePayer,
+  } = SmartContractModule;
+  let [message, setMessage] = useState('');
+  let [lastMessage, setLastMessage] = useState('No message yet');
+  let worldIds: Identity[] = useMemo(
+    () => JSON.parse(localStorage.worldIds ?? '[]'),
+    []
+  );
+  let [isLoading, setLoading] = useState(false);
+  useEffect(() => {
+    let last = getMessage();
+    setLastMessage(last!.toString());
+  }, [isLoading]);
+
+  async function publishMessageProof(
+    privateKey: { trapdoor: string; nullifier: string },
+    publicKey: Field
+  ) {
+    let { Mina } = snarky;
+
+    setLoading(true);
+    try {
+      let { witness, signedRoot } = await WorldId.fetchMerkleProof(
+        sequencerUrl,
+        publicKey
+      );
+      await deployHumanMessage();
+
+      let zkapp = new HumanMessage(zkappAddress);
+      let privateKey_ = SemaphorePrivateKey.fromJSON(privateKey)!;
+
+      let tx = await Mina.transaction(feePayer, () => {
+        zkapp.publishMessage(
+          StringOf7Fields.from(message),
+          privateKey_,
+          witness,
+          signedRoot
+        );
+      });
+      await tx.prove();
+      await tx.send().wait();
+      setLoading(false);
+      setMessage('');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <p style={{ textAlign: 'center' }}>
+        Write a message for the world on this wall, anonymously and
+        censorship-resistant! To give everyone a chance, the same person can't
+        write two messages in a row.
+      </p>
+      <Space h="2rem" />
+      <input
+        type="text"
+        placeholder="Your Message"
+        style={{ height: '3rem', fontSize: '1.5rem', paddingLeft: '0.8rem' }}
+        value={message}
+        onChange={(v) => setMessage(v.target.value)}
+      ></input>
+      <Space h="2rem" />
+      {worldIds.length === 0 && (
+        <p style={{ textAlign: 'center', fontWeight: 'bold', color: darkGrey }}>
+          You don't have an identity yet! Create one at the "Orb" tab.
+        </p>
+      )}
+      {worldIds.map((id) => {
+        return (
+          <div key={id.name}>
+            <LoadingButton
+              onClick={() => publishMessageProof(id.privateKey, id.publicKey)}
+              isLoading={isLoading}
+            >
+              Speak as {id.name}
+            </LoadingButton>
+            <Space h="1rem" />
+          </div>
+        );
+      })}
+      <Space h="2rem" />
+      {lastMessage !== '' && (
+        <>
+          <p style={{ textAlign: 'center' }}>
+            Here's what the last person had to say:
+          </p>
+          <Space h="2rem" />
+          <p style={{ textAlign: 'center', fontStyle: 'italic' }}>
+            <b style={{ fontSize: '2rem' }}>"</b>
+            {lastMessage}
+            <b style={{ fontSize: '2rem' }}>"</b>
+          </p>
+        </>
       )}
     </>
   );

@@ -2,14 +2,18 @@
  * script that starts the sequencer and tests the happy path of inserting a public key,
  * fetching the merkle witness for it and calling the world id zkapp to produce a proof of unique personhood
  */
-import { Field, isReady, Mina, PrivateKey } from 'snarkyjs';
+import { Field, isReady, Mina, PrivateKey, verify } from 'snarkyjs';
 import { isRunning, PORT } from './sequencer.js';
 import { WorldId } from '../build/src/WorldId.js';
+import { StringOf7Fields } from '../build/src/HumanMessage.js';
 
 await isRunning;
 await isReady;
 
 let sequencerUrl = `http://localhost:${PORT}`;
+
+let msg = StringOf7Fields.from('blabla');
+console.log(StringOf7Fields.ofFields(msg.toFields()).toString());
 
 let { privateKey, publicKey } = WorldId.generateKeypair();
 let irisHash = Field.random();
@@ -35,6 +39,9 @@ let tx = await Mina.transaction(() => {
     Field.zero
   );
 });
-await tx.prove();
+let [proof] = await tx.prove();
+
+let ok = await verify(proof, WorldId._verificationKey.data);
+if (!ok) throw Error('verification failure!');
 console.log('success!');
 process.exit(0);
