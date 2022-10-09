@@ -26,8 +26,7 @@ let server = http.createServer(async (req, res) => {
       // endpoint that inserts a new public key, provided that the iris hash is unique
       // TODO: should check that this is signed by one of the registered orbs
       case '/insert': {
-        let body = await getBodyJSON(req);
-        let { irisHash, publicKey } = body;
+        let { irisHash, publicKey } = await getBodyJSON(req);
 
         // reject if the iris hash was already registered
         if (irisHashes.has(irisHash)) {
@@ -45,8 +44,7 @@ let server = http.createServer(async (req, res) => {
       }
       // endpoint that produce a merkle proof for inclusion of a given public key
       case '/proof': {
-        let body = await getBodyJSON(req);
-        let { publicKey } = body;
+        let { publicKey } = await getBodyJSON(req);
         let index = publicKeys.findIndex((pk) => pk === publicKey);
         if (index === -1) {
           res.writeHead(404, headers);
@@ -62,6 +60,12 @@ let server = http.createServer(async (req, res) => {
       // endpoint that returns the sequencer's public key
       case '/public-key': {
         response = JSON.stringify({ publicKey: sequencerPublicKey });
+        break;
+      }
+      // endpoint that checks whether a given public key is in the tree
+      case '/has-public-key': {
+        let { publicKey } = await getBodyJSON(req);
+        response = JSON.stringify(publicKeys.includes(publicKey));
       }
     }
     res.writeHead(200, headers);

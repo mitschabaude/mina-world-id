@@ -23,12 +23,33 @@ createRoot(document.querySelector('#root')!).render(<App />);
 function App() {
   let [view, setView] = useState<View>(startView);
   let [isReady, setIsReady] = useState(false);
+  let [, reload] = useState(0);
   useEffect(() => {
+    // asnychronously load snarkyjs
     (async () => {
       WorldIdModule = await import('../../build/src/WorldId.js');
       ({ snarky, WorldId } = WorldIdModule);
       await snarky.isReady;
       setIsReady(true);
+    })();
+    (async () => {
+      // meanwhile, clean out locally stored public keys that aren't in the global merkle tree
+      let identities: Identity[] = JSON.parse(localStorage.worldIds ?? '[]');
+      let promises = identities.map(async ({ publicKey }) => {
+        let res = await fetch(`${sequencerUrl}/has-public-key`, {
+          method: 'POST',
+          body: JSON.stringify({ publicKey }),
+        });
+        if (!(await res.json())) {
+          identities.splice(
+            identities.findIndex((i) => i.publicKey === publicKey),
+            1
+          );
+        }
+      });
+      await Promise.all(promises);
+      localStorage.worldIds = JSON.stringify(identities);
+      reload((i) => i + 1);
     })();
   }, []);
   let View = ({ Orb, Captcha } as any)[view] ?? null;
@@ -104,12 +125,12 @@ function Orb() {
   );
 }
 
-type SemaphorePrivateKey = { trapdoor: Field; nullifier: Field };
+type StoredPrivateKey = { trapdoor: string; nullifier: string };
 
 type Identity = {
   name: string;
   publicKey: Field;
-  privateKey: SemaphorePrivateKey;
+  privateKey: StoredPrivateKey;
 };
 
 function Captcha() {
@@ -170,6 +191,11 @@ function Captcha() {
         maintained by the World ID sequencer.
       </p>
       <Space h="2rem" />
+      {worldIds.length === 0 && (
+        <p style={{ textAlign: 'center', fontWeight: 'bold', color: darkGrey }}>
+          You don't have an identity yet! Create one at the "Orb" tab.
+        </p>
+      )}
       {worldIds.map((id) => {
         return (
           <div key={id.name}>
@@ -186,11 +212,13 @@ function Captcha() {
         );
       })}
       <Space h="1rem" />
-      <p style={{ textAlign: 'center', fontSize: '0.8rem' }}>
-        This is a somewhat silly example because the same website that verifies
-        the proof also creates it. In a real-world scenario, the proof could
-        come from a wallet.
-      </p>
+      {worldIds.length > 0 && (
+        <p style={{ textAlign: 'center', fontSize: '0.8rem' }}>
+          This is a somewhat silly example because the same website that
+          verifies the proof also creates it. In a real-world scenario, the
+          proof could come from a wallet.
+        </p>
+      )}
     </>
   );
 }
