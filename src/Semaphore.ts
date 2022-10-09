@@ -8,7 +8,7 @@ import {
   Struct,
   Poseidon,
   Signature,
-  PrivateKey,
+  PublicKey,
 } from 'snarkyjs';
 import { MERKLE_TREE_HEIGHT } from './constants';
 
@@ -30,7 +30,7 @@ class SignedMerkleRoot extends Struct({
 
 // witness of inclusion in the identity "group" / merkle tree of public keys
 // TODO: what's the tree height?
-class MerklePath extends Experimental.MerkleWitness(MERKLE_TREE_HEIGHT) {}
+class MerkleWitness extends Experimental.MerkleWitness(MERKLE_TREE_HEIGHT) {}
 
 class Semaphore extends SmartContract {
   /**
@@ -42,15 +42,9 @@ class Semaphore extends SmartContract {
 
   events = { signal: Field };
 
-  trustedServerPublicKey = PrivateKey.random().toPublicKey();
-
-  async fetchWorldIdRoot() {
-    // TODO: mock server
-    let root = Field.random();
-    let pk = PrivateKey.random();
-    let signature = Signature.create(pk, [root]);
-    return new SignedMerkleRoot({ root, signature });
-  }
+  sequencerPublicKey = PublicKey.fromBase58(
+    'B62qqtPPmKENZiE39zNKqzydrj2MhBa1AngUCzU2HT1YRjihgbRWrvM'
+  );
 
   /**
    * the circuit which proves the user is a unique human (== has a world id)
@@ -76,8 +70,8 @@ class Semaphore extends SmartContract {
    */
   @method proveUniqueHuman(
     privateKey: SemaphorePrivateKey,
-    merklePath: MerklePath,
-    signedMerkleRoot: SignedMerkleRoot,
+    merklePath: MerkleWitness,
+    signedRoot: SignedMerkleRoot,
     externalNullifier: Field,
     signal: Field
   ) {
@@ -90,11 +84,11 @@ class Semaphore extends SmartContract {
     // check that the public key is contained in identity group, by asserting it equals the signed root
     // by adding a precondition that the implied root is the one stored on this contract
     let impliedRoot = merklePath.calculateRoot(publicKey);
-    signedMerkleRoot.root.assertEquals(impliedRoot);
+    signedRoot.root.assertEquals(impliedRoot);
 
     // check the signature on the merkle root
-    signedMerkleRoot.signature
-      .verify(this.trustedServerPublicKey, [signedMerkleRoot.root])
+    signedRoot.signature
+      .verify(this.sequencerPublicKey, [signedRoot.root])
       .assertTrue();
 
     // publish the input as an event, so its connected to this circuit
@@ -106,5 +100,18 @@ class Semaphore extends SmartContract {
       externalNullifier,
     ]);
     return nullifierHash;
+  }
+
+  // helper method to get the merkle witness from the sequencer
+  async fetchMerkleProof(sequencerUrl: string, publicKey: PublicKey) {
+    let response = await fetch(`${sequencerUrl}/proof`, {
+      method: 'POST',
+      body: JSON.stringify({ publicKey }),
+    });
+    let json = await response.json();
+    let witness = MerkleWitness.fromJSON(json.witness)!;
+    let root = Field.fromJSON(json.root)!;
+    let signature = Signature.fromJSON(json.signature)!;
+    return { witness, signedRoot: new SignedMerkleRoot({ root, signature }) };
   }
 }

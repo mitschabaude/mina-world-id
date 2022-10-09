@@ -1,9 +1,12 @@
 import http from 'node:http';
-import { Experimental, Field, PrivateKey, Signature } from 'snarkyjs';
+import { Experimental, Field, isReady, PrivateKey, Signature } from 'snarkyjs';
 import { MERKLE_TREE_HEIGHT } from './constants.js';
 
 // private and public key pair which signs the merkle root
-let sequencerPrivateKey = PrivateKey.random();
+await isReady;
+let sequencerPrivateKey = PrivateKey.fromBase58(
+  'EKDtE81RyYL3jpBKwSLBUMacySGoxFzGGLKrMCUj9WRREZEe538D'
+);
 let sequencerPublicKey = sequencerPrivateKey.toPublicKey();
 
 // list of unique humans & merkle tree which stores public keys in its leafs
