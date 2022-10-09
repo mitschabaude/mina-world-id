@@ -1,3 +1,3 @@
-import { Add } from './Add.js';
+import { Semaphore } from './Semaphore.js';
 
-export { Add };
+export { Semaphore };
