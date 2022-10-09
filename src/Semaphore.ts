@@ -10,6 +10,7 @@ import {
   Signature,
   PrivateKey,
 } from 'snarkyjs';
+import { MERKLE_TREE_HEIGHT } from './constants';
 
 export { Semaphore };
 
@@ -29,7 +30,7 @@ class SignedMerkleRoot extends Struct({
 
 // witness of inclusion in the identity "group" / merkle tree of public keys
 // TODO: what's the tree height?
-class MerklePath extends Experimental.MerkleWitness(8) {}
+class MerklePath extends Experimental.MerkleWitness(MERKLE_TREE_HEIGHT) {}
 
 class Semaphore extends SmartContract {
   /**
