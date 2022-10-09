@@ -41,5 +41,5 @@ let tx = await Mina.transaction(() => {
   );
 });
 await tx.prove();
-console.log(tx.toPretty());
+console.log('success!');
 process.exit(0);

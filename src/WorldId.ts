@@ -5,11 +5,12 @@ import {
   State,
   state,
   Experimental,
-  Struct,
   Poseidon,
   Signature,
   PublicKey,
   Bool,
+  CircuitValue,
+  prop,
 } from 'snarkyjs';
 import { MERKLE_TREE_HEIGHT } from './constants.js';
 
@@ -17,17 +18,17 @@ export { WorldId };
 
 // a semaphore "private key" / "identity" consists of two 31 byte numbers: trapdoor and nullifier.
 // we represent those as Fields (elements of the Vesta curve base field), which can hold 254 bits > 31 bytes
-class SemaphorePrivateKey extends Struct({
-  trapdoor: Field,
-  nullifier: Field,
-}) {}
+class SemaphorePrivateKey extends CircuitValue {
+  @prop trapdoor: Field;
+  @prop nullifier: Field;
+}
 
 // the world id merkle root which gets signed by worldcoin's "signup sequencer"
 // signing uses the Pasta curves
-class SignedMerkleRoot extends Struct({
-  root: Field,
-  signature: Signature,
-}) {}
+class SignedMerkleRoot extends CircuitValue {
+  @prop root: Field;
+  @prop signature: Signature;
+}
 
 // witness of inclusion in the identity "group" / merkle tree of public keys
 class MerkleWitness extends Experimental.MerkleWitness(MERKLE_TREE_HEIGHT) {}
@@ -118,7 +119,7 @@ class WorldId extends SmartContract {
     }));
     return {
       witness: new MerkleWitness(witness),
-      signedRoot: new SignedMerkleRoot({ root, signature }),
+      signedRoot: new SignedMerkleRoot(root, signature),
     };
   }
 }
