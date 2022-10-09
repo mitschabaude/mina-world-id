@@ -18,7 +18,8 @@
     "sourceMap": false,
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "jsx": "react"
   },
   "include": ["./src"],
   "exclude": ["./src/**/*.test.ts"]

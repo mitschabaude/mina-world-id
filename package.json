@@ -20,13 +20,12 @@
     "prepare": "husky install",
     "test": "node --experimental-vm-modules --experimental-wasm-modules --experimental-wasm-threads node_modules/jest/bin/jest.js",
     "testw": "node --experimental-vm-modules --experimental-wasm-modules --experimental-wasm-threads node_modules/jest/bin/jest.js --watch",
-    "lint": "npx eslint src/* --fix"
+    "lint": "npx eslint src/* --fix",
+    "ui:start": "node src/example-ui/server.js & esbuild --watch --splitting --bundle ./src/example-ui/App.jsx --outdir=./src/example-ui/public/js --format=esm --target=esnext --define:process.env.NODE_ENV='\"development\"'",
+    "ui:build": "tsc && esbuild --minify --splitting --bundle ./src/example-ui/App.tsx --outdir=./src/example-ui/public/js --format=esm --target=esnext --define:process.env.NODE_ENV='\"production\"'"
   },
   "lint-staged": {
-    "**/*": [
-      "eslint src/* --fix",
-      "prettier --write --ignore-unknown"
-    ]
+    "**/*": []
   },
   "devDependencies": {
     "@babel/preset-env": "^7.16.4",
@@ -34,6 +33,7 @@
     "@types/jest": "^27.0.3",
     "@typescript-eslint/eslint-plugin": "^5.5.0",
     "@typescript-eslint/parser": "^5.5.0",
+    "esbuild": "^0.14.54",
     "eslint": "^8.7.0",
     "eslint-plugin-snarkyjs": "^0.1.0",
     "husky": "^7.0.1",
@@ -45,5 +45,11 @@
   },
   "peerDependencies": {
     "snarkyjs": "file:../../snarkyjs"
+  },
+  "dependencies": {
+    "@types/react": "^18.0.21",
+    "@types/react-dom": "^18.0.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   }
 }
