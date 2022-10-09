@@ -2,6 +2,8 @@ import http from 'node:http';
 import { Experimental, Field, isReady, PrivateKey, Signature } from 'snarkyjs';
 import { MERKLE_TREE_HEIGHT } from './constants.js';
 
+export { PORT, isRunning };
+
 // private and public key pair which signs the merkle root
 await isReady;
 let sequencerPrivateKey = PrivateKey.fromBase58(
@@ -65,15 +67,20 @@ let server = http.createServer(async (req, res) => {
     res.writeHead(200, headers);
     res.write(response);
     res.end();
-  } catch {
+  } catch (err) {
+    console.log('got error');
+    console.error(err);
     res.writeHead(500, {});
     res.end();
   }
 });
 
 let PORT = 3000;
-server.listen(PORT, () => {
-  console.log(`server running on http://localhost:${PORT}`);
+let isRunning = new Promise((resolve) => {
+  server.listen(PORT, () => {
+    console.log(`server running on http://localhost:${PORT}`);
+    resolve();
+  });
 });
 
 function getBodyJSON(request) {

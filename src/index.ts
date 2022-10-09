@@ -1,3 +1,3 @@
-import { Semaphore } from './Semaphore.js';
+import { WorldId } from './WorldId.js';
 
-export { Semaphore };
+export { WorldId };

@@ -9,10 +9,11 @@ import {
   Poseidon,
   Signature,
   PublicKey,
+  Bool,
 } from 'snarkyjs';
-import { MERKLE_TREE_HEIGHT } from './constants';
+import { MERKLE_TREE_HEIGHT } from './constants.js';
 
-export { Semaphore };
+export { WorldId };
 
 // a semaphore "private key" / "identity" consists of two 31 byte numbers: trapdoor and nullifier.
 // we represent those as Fields (elements of the Vesta curve base field), which can hold 254 bits > 31 bytes
@@ -29,10 +30,9 @@ class SignedMerkleRoot extends Struct({
 }) {}
 
 // witness of inclusion in the identity "group" / merkle tree of public keys
-// TODO: what's the tree height?
 class MerkleWitness extends Experimental.MerkleWitness(MERKLE_TREE_HEIGHT) {}
 
-class Semaphore extends SmartContract {
+class WorldId extends SmartContract {
   /**
    * merkle root or the tree which stores identities
    * == the big semaphore group containing all the unique humans
@@ -68,7 +68,7 @@ class Semaphore extends SmartContract {
    * with this method call in its own logic. however, "signal" is needed to link app-specific data to a
    * stand-alone proof, which is to be verified outside Mina)
    */
-  @method proveUniqueHuman(
+  @method provePersonhood(
     privateKey: SemaphorePrivateKey,
     merklePath: MerkleWitness,
     signedRoot: SignedMerkleRoot,
@@ -109,9 +109,16 @@ class Semaphore extends SmartContract {
       body: JSON.stringify({ publicKey }),
     });
     let json = await response.json();
-    let witness = MerkleWitness.fromJSON(json.witness)!;
     let root = Field.fromJSON(json.root)!;
     let signature = Signature.fromJSON(json.signature)!;
-    return { witness, signedRoot: new SignedMerkleRoot({ root, signature }) };
+    // TODO: fromJSON not implemented on arrays
+    let witness = json.witness.map((node: any) => ({
+      isLeft: Bool(node.isLeft),
+      sibling: Field(node.sibling),
+    }));
+    return {
+      witness: new MerkleWitness(witness),
+      signedRoot: new SignedMerkleRoot({ root, signature }),
+    };
   }
 }
