@@ -155,8 +155,10 @@ function Captcha() {
         publicKey
       );
 
+      console.log('compiling contract...');
       await WorldId.compile();
 
+      console.log('constructing transaction...');
       let worldId = new WorldId(PrivateKey.random().toPublicKey());
       let privateKey_ = SemaphorePrivateKey.fromJSON(privateKey)!;
 
@@ -169,8 +171,12 @@ function Captcha() {
           Field.zero
         );
       });
+
+      console.log('creating proof...');
       let [proof] = await tx.prove();
+      console.log('verifying proof...');
       let ok = await verify(proof!, WorldId._verificationKey!.data);
+      console.log('success?', ok);
       setSuccess(ok);
     } finally {
       setLoading(false);
@@ -272,7 +278,7 @@ function Speak() {
         );
       });
       await tx.prove();
-      await tx.send().wait();
+      await tx.send();
       setLoading(false);
       setMessage('');
     } finally {

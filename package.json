@@ -22,7 +22,7 @@
     "testw": "node --experimental-vm-modules --experimental-wasm-modules --experimental-wasm-threads node_modules/jest/bin/jest.js --watch",
     "lint": "npx eslint src/* --fix",
     "ui:start": "node src/example-ui/server.js & esbuild --watch --splitting --bundle ./src/example-ui/App.jsx --outdir=./src/example-ui/public/js --format=esm --target=esnext --define:process.env.NODE_ENV='\"development\"'",
-    "ui:build": "tsc && esbuild --minify --splitting --bundle ./src/example-ui/App.tsx --outdir=./src/example-ui/public/js --format=esm --target=esnext --define:process.env.NODE_ENV='\"production\"'"
+    "ui:build": "tsc && esbuild --splitting --bundle ./src/example-ui/App.tsx --outdir=./src/example-ui/public/js --format=esm --target=esnext --define:process.env.NODE_ENV='\"production\"'"
   },
   "lint-staged": {
     "**/*": []
@@ -43,13 +43,11 @@
     "ts-jest": "^27.0.7",
     "typescript": "^4.7.2"
   },
-  "peerDependencies": {
-    "snarkyjs": "^0.6.0"
-  },
   "dependencies": {
     "@types/react": "^18.0.21",
     "@types/react-dom": "^18.0.6",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "snarkyjs": "file:../../../mina/src/lib/snarky_js_bindings/snarkyjs"
   }
 }

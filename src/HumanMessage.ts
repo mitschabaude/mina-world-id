@@ -105,7 +105,7 @@ async function deployHumanMessage() {
   });
 
   tx.sign([zkappKey]);
-  await tx.send().wait();
+  await tx.send();
   isDeployed = true;
 }
 
